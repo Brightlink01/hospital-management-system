@@ -1,33 +1,48 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import DashboardLayout from "../layouts/DashboardLayout";
 import PatientTable from "../components/PatientTable";
+import api from "../services/api";
 
 export default function Patients() {
-  const [patients, setPatients] = useState([
-    {
-      id: 1,
-      name: "John Doe",
-      age: 30,
-      gender: "Male",
-    },
-    {
-      id: 2,
-      name: "Sarah Smith",
-      age: 25,
-      gender: "Female",
-    },
-  ]);
+  const [patients, setPatients] = useState([]);
 
-  const [showModal, setShowModal] = useState(false);
+  const [search, setSearch] = useState("");
 
-  const [editingPatient, setEditingPatient] = useState(null);
+  const [searchResults, setSearchResults] =
+    useState([]);
+
+  const [showModal, setShowModal] =
+    useState(false);
+
+  const [editingPatient, setEditingPatient] =
+    useState(null);
 
   const [formData, setFormData] = useState({
     name: "",
     age: "",
     gender: "",
   });
+
+  const fetchPatients = async (
+    searchValue = ""
+  ) => {
+    try {
+      const response = await api.get(
+        `/patients?search=${searchValue}`
+      );
+
+      setPatients(response.data);
+
+      setSearchResults(response.data);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  useEffect(() => {
+    fetchPatients();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({
@@ -36,46 +51,62 @@ export default function Patients() {
     });
   };
 
-  const handleAddPatient = (e) => {
+  const handleAddPatient = async (e) => {
     e.preventDefault();
 
-    if (editingPatient) {
-      const updatedPatients = patients.map((patient) =>
-        patient.id === editingPatient.id
-          ? {
-              ...patient,
-              ...formData,
-            }
-          : patient
-      );
+    try {
+      if (editingPatient) {
+        const response = await api.put(
+          `/patients/${editingPatient.id}`,
+          formData
+        );
 
-      setPatients(updatedPatients);
+        const updatedPatients = patients.map(
+          (patient) =>
+            patient.id === editingPatient.id
+              ? response.data
+              : patient
+        );
+
+        setPatients(updatedPatients);
+      } else {
+        const response = await api.post(
+          "/patients",
+          formData
+        );
+
+        setPatients([
+          response.data,
+          ...patients,
+        ]);
+      }
+
+      setFormData({
+        name: "",
+        age: "",
+        gender: "",
+      });
+
+      setShowModal(false);
 
       setEditingPatient(null);
-    } else {
-      const newPatient = {
-        id: patients.length + 1,
-        ...formData,
-      };
 
-      setPatients([...patients, newPatient]);
+      fetchPatients(search);
+    } catch (error) {
+      console.log(error);
     }
-
-    setFormData({
-      name: "",
-      age: "",
-      gender: "",
-    });
-
-    setShowModal(false);
   };
 
-  const handleDeletePatient = (id) => {
-    const filteredPatients = patients.filter(
-      (patient) => patient.id !== id
-    );
+  const handleDeletePatient = async (
+    id
+  ) => {
+    try {
+      await api.delete(`/patients/${id}`);
 
-    setPatients(filteredPatients);
+      fetchPatients(search);
+    } catch (error) {
+      console.log(error);
+    }
   };
 
   const handleEditPatient = (patient) => {
@@ -88,6 +119,18 @@ export default function Patients() {
     });
 
     setShowModal(true);
+  };
+
+  const handleUseExistingPatient = (
+    patient
+  ) => {
+    alert(
+      `Using existing patient: ${patient.name}`
+    );
+
+    setSearch("");
+
+    setSearchResults([]);
   };
 
   return (
@@ -109,11 +152,117 @@ export default function Patients() {
 
             setShowModal(true);
           }}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
           Add Patient
         </button>
       </div>
+
+      <div className="mb-6 flex justify-between items-center">
+        <div className="flex items-center gap-2 w-full max-w-md">
+          <input
+            type="text"
+            placeholder="Search patient history..."
+            value={search}
+            onChange={(e) =>
+              setSearch(e.target.value)
+            }
+            className="flex-1 border border-gray-300 px-4 py-2 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+
+          <button
+            onClick={() =>
+              fetchPatients(search)
+            }
+            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg shadow"
+          >
+            Search
+          </button>
+        </div>
+      </div>
+
+      {search.length > 0 && (
+        <div className="bg-white rounded-xl shadow p-4 mb-6">
+          <h2 className="text-lg font-semibold mb-3">
+            Search Results
+          </h2>
+
+          {searchResults.length > 0 ? (
+            <div className="space-y-3">
+              {searchResults.map((patient) => (
+                <div
+                  key={patient.id}
+                  className="flex justify-between items-center border p-3 rounded-lg"
+                >
+                  <div>
+                    <p className="font-semibold">
+                      {patient.name}
+                    </p>
+
+                    <p className="text-sm text-gray-500">
+                      Age: {patient.age} |
+                      Gender: {patient.gender}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        handleUseExistingPatient(
+                          patient
+                        )
+                      }
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg"
+                    >
+                      Use Existing
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setEditingPatient(null);
+
+                        setFormData({
+                          name: search,
+                          age: "",
+                          gender: "",
+                        });
+
+                        setShowModal(true);
+                      }}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+                    >
+                      Register New
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex justify-between items-center">
+              <p className="text-gray-500">
+                No patient found
+              </p>
+
+              <button
+                onClick={() => {
+                  setEditingPatient(null);
+
+                  setFormData({
+                    name: search,
+                    age: "",
+                    gender: "",
+                  });
+
+                  setShowModal(true);
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+              >
+                Register New Patient
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <PatientTable
         patients={patients}
@@ -123,7 +272,7 @@ export default function Patients() {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-xl w-96">
+          <div className="bg-white p-6 rounded-xl w-96 shadow-lg">
             <h2 className="text-2xl font-bold mb-4">
               {editingPatient
                 ? "Edit Patient"
@@ -174,15 +323,17 @@ export default function Patients() {
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border rounded"
+                  onClick={() =>
+                    setShowModal(false)
+                  }
+                  className="px-4 py-2 border rounded hover:bg-gray-100"
                 >
                   Cancel
                 </button>
 
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded"
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                 >
                   {editingPatient
                     ? "Update"
