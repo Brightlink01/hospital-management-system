@@ -1,30 +1,49 @@
 import { useEffect, useState } from "react";
 
-import { useParams } from "react-router-dom";
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
 import DashboardLayout from "../layouts/DashboardLayout";
 
 import api from "../services/api";
-import { useNavigate } from "react-router-dom";
 
 export default function PatientProfile() {
   const { id } = useParams();
 
+  const navigate = useNavigate();
+
   const [patient, setPatient] =
     useState(null);
 
-  const navigate = useNavigate();
-  
   const [visits, setVisits] = useState([]);
+
+  const [appointments, setAppointments] =
+    useState([]);
 
   const [showModal, setShowModal] =
     useState(false);
+
+  const [
+    showAppointmentModal,
+    setShowAppointmentModal,
+  ] = useState(false);
 
   const [visitForm, setVisitForm] =
     useState({
       reason: "",
       doctor: "",
     });
+
+  const [
+    appointmentForm,
+    setAppointmentForm,
+  ] = useState({
+    doctor_name: "",
+    appointment_date: "",
+    reason: "",
+  });
 
   const fetchPatient = async () => {
     try {
@@ -50,15 +69,41 @@ export default function PatientProfile() {
     }
   };
 
+  const fetchAppointments =
+    async () => {
+      try {
+        const response = await api.get(
+          `/patients/${id}/appointments`
+        );
+
+        setAppointments(
+          response.data
+        );
+      } catch (error) {
+        console.log(error);
+      }
+    };
+
   useEffect(() => {
     fetchPatient();
 
     fetchVisits();
+
+    fetchAppointments();
   }, []);
 
   const handleVisitChange = (e) => {
     setVisitForm({
       ...visitForm,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleAppointmentChange = (
+    e
+  ) => {
+    setAppointmentForm({
+      ...appointmentForm,
       [e.target.name]: e.target.value,
     });
   };
@@ -84,6 +129,32 @@ export default function PatientProfile() {
       console.log(error);
     }
   };
+
+  const handleAddAppointment =
+    async (e) => {
+      e.preventDefault();
+
+      try {
+        await api.post(
+          `/patients/${id}/appointments`,
+          appointmentForm
+        );
+
+        setAppointmentForm({
+          doctor_name: "",
+          appointment_date: "",
+          reason: "",
+        });
+
+        setShowAppointmentModal(
+          false
+        );
+
+        fetchAppointments();
+      } catch (error) {
+        console.log(error);
+      }
+    };
 
   if (!patient) {
     return (
@@ -163,14 +234,15 @@ export default function PatientProfile() {
           {visits.length > 0 ? (
             <div className="space-y-4">
               {visits.map((visit) => (
-                
                 <div
-                    key={visit.id}
-                    onClick={() =>
-                    navigate(`/visits/${visit.id}`)
-                            }   
-                        className="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition"
-                 >
+                  key={visit.id}
+                  onClick={() =>
+                    navigate(
+                      `/visits/${visit.id}`
+                    )
+                  }
+                  className="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition"
+                >
                   <div className="flex justify-between">
                     <div>
                       <h3 className="font-semibold text-lg">
@@ -201,6 +273,78 @@ export default function PatientProfile() {
           ) : (
             <p className="text-gray-500">
               No visits yet
+            </p>
+          )}
+        </div>
+
+        <div className="bg-white p-6 rounded-xl shadow">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold">
+              Appointments
+            </h2>
+
+            <button
+              onClick={() =>
+                setShowAppointmentModal(
+                  true
+                )
+              }
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg"
+            >
+              Schedule Appointment
+            </button>
+          </div>
+
+          {appointments.length > 0 ? (
+            <div className="space-y-4">
+              {appointments.map(
+                (appointment) => (
+                  <div
+                    key={appointment.id}
+                    className="border rounded-lg p-4"
+                  >
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-lg">
+                        Dr.{" "}
+                        {
+                          appointment.doctor_name
+                        }
+                      </h3>
+
+                      <p>
+                        <strong>
+                          Date:
+                        </strong>{" "}
+                        {new Date(
+                          appointment.appointment_date
+                        ).toLocaleString()}
+                      </p>
+
+                      <p>
+                        <strong>
+                          Reason:
+                        </strong>{" "}
+                        {
+                          appointment.reason
+                        }
+                      </p>
+
+                      <p>
+                        <strong>
+                          Status:
+                        </strong>{" "}
+                        {
+                          appointment.status
+                        }
+                      </p>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          ) : (
+            <p className="text-gray-500">
+              No appointments scheduled
             </p>
           )}
         </div>
@@ -254,6 +398,81 @@ export default function PatientProfile() {
                   className="bg-blue-600 text-white px-4 py-2 rounded"
                 >
                   Save Visit
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showAppointmentModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-xl w-[600px] shadow-lg">
+            <h2 className="text-2xl font-bold mb-4">
+              Schedule Appointment
+            </h2>
+
+            <form
+              onSubmit={
+                handleAddAppointment
+              }
+              className="space-y-4"
+            >
+              <input
+                type="text"
+                name="doctor_name"
+                placeholder="Doctor Name"
+                value={
+                  appointmentForm.doctor_name
+                }
+                onChange={
+                  handleAppointmentChange
+                }
+                className="w-full border p-3 rounded"
+              />
+
+              <input
+                type="datetime-local"
+                name="appointment_date"
+                value={
+                  appointmentForm.appointment_date
+                }
+                onChange={
+                  handleAppointmentChange
+                }
+                className="w-full border p-3 rounded"
+              />
+
+              <textarea
+                name="reason"
+                placeholder="Reason for Appointment"
+                value={
+                  appointmentForm.reason
+                }
+                onChange={
+                  handleAppointmentChange
+                }
+                className="w-full border p-3 rounded"
+              />
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowAppointmentModal(
+                      false
+                    )
+                  }
+                  className="px-4 py-2 border rounded"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="bg-indigo-600 text-white px-4 py-2 rounded"
+                >
+                  Save Appointment
                 </button>
               </div>
             </form>

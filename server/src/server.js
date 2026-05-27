@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 
 import pool from "./config/db.js";
 import patientRoutes from "./routes/patientRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 
 dotenv.config();
 
@@ -13,6 +14,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/patients", patientRoutes);
+app.use("/api/auth", authRoutes);
 
 app.get("/", (req, res) => {
   res.json({

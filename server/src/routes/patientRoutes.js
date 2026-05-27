@@ -1,7 +1,12 @@
 import express from "express";
 import pool from "../config/db.js";
+import {
+  verifyToken,
+} from "../middleware/authMiddleware.js";
+
 
 const router = express.Router();
+router.use(verifyToken);
 
 router.get("/", async (req, res) => {
   try {
@@ -267,4 +272,223 @@ router.post(
   }
 );
 
+router.get(
+  "/visits/:visitId/prescriptions",
+  async (req, res) => {
+    try {
+      const { visitId } = req.params;
+
+      const result = await pool.query(
+        `
+        SELECT *
+        FROM prescriptions
+        WHERE visit_id = $1
+        ORDER BY created_at DESC
+        `,
+        [visitId]
+      );
+
+      res.json(result.rows);
+    } catch (error) {
+      console.log(error);
+
+      res.status(500).json({
+        error: error.message,
+      });
+    }
+  }
+);
+
+router.post(
+  "/visits/:visitId/prescriptions",
+  async (req, res) => {
+    try {
+      const { visitId } = req.params;
+
+      const {
+        medication_name,
+        dosage,
+        frequency,
+        duration,
+        notes,
+      } = req.body;
+
+      const result = await pool.query(
+        `
+        INSERT INTO prescriptions (
+          visit_id,
+          medication_name,
+          dosage,
+          frequency,
+          duration,
+          notes
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+        `,
+        [
+          visitId,
+          medication_name,
+          dosage,
+          frequency,
+          duration,
+          notes,
+        ]
+      );
+
+      res.status(201).json(
+        result.rows[0]
+      );
+    } catch (error) {
+      console.log(error);
+
+      res.status(500).json({
+        error: error.message,
+      });
+    }
+  }
+);
+
+router.get(
+  "/visits/:visitId/vitals",
+  async (req, res) => {
+    try {
+      const { visitId } = req.params;
+
+      const result = await pool.query(
+        `
+        SELECT *
+        FROM vitals
+        WHERE visit_id = $1
+        ORDER BY created_at DESC
+        `,
+        [visitId]
+      );
+
+      res.json(result.rows);
+    } catch (error) {
+      console.log(error);
+
+      res.status(500).json({
+        error: error.message,
+      });
+    }
+  }
+);
+
+router.post(
+  "/visits/:visitId/vitals",
+  async (req, res) => {
+    try {
+      const { visitId } = req.params;
+
+      const {
+        blood_pressure,
+        temperature,
+        pulse,
+        respiratory_rate,
+        oxygen_saturation,
+        weight,
+      } = req.body;
+
+      const result = await pool.query(
+        `
+        INSERT INTO vitals (
+          visit_id,
+          blood_pressure,
+          temperature,
+          pulse,
+          respiratory_rate,
+          oxygen_saturation,
+          weight
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *
+        `,
+        [
+          visitId,
+          blood_pressure,
+          temperature,
+          pulse,
+          respiratory_rate,
+          oxygen_saturation,
+          weight,
+        ]
+      );
+
+      res.status(201).json(
+        result.rows[0]
+      );
+    } catch (error) {
+      console.log(error);
+
+      res.status(500).json({
+        error: error.message,
+      });
+    }
+  }
+);
+
+router.get(
+  "/dashboard/stats",
+  async (req, res) => {
+    try {
+      const patients =
+        await pool.query(
+          `
+          SELECT COUNT(*) 
+          FROM patients
+          `
+        );
+
+      const visits =
+        await pool.query(
+          `
+          SELECT COUNT(*) 
+          FROM visits
+          `
+        );
+
+      const appointments =
+        await pool.query(
+          `
+          SELECT COUNT(*) 
+          FROM appointments
+          `
+        );
+
+      const todayAppointments =
+        await pool.query(
+          `
+          SELECT COUNT(*)
+          FROM appointments
+          WHERE DATE(
+            appointment_date
+          ) = CURRENT_DATE
+          `
+        );
+
+      res.json({
+        totalPatients:
+          patients.rows[0].count,
+
+        totalVisits:
+          visits.rows[0].count,
+
+        totalAppointments:
+          appointments.rows[0].count,
+
+        todayAppointments:
+          todayAppointments.rows[0]
+            .count,
+      });
+    } catch (error) {
+      console.log(error);
+
+      res.status(500).json({
+        error: error.message,
+      });
+    }
+  }
+);
 export default router;
